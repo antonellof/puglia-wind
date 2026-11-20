@@ -1,0 +1,22 @@
+{
+ "benchmark": "simpleFoam",
+ "label": "container-gcc",
+ "case": "bench-container-gcc",
+ "ranks": 4,
+ "iterations": 200,
+ "wall_s": 47.79194641113281,
+ "s_per_iter_steady": 0.2423489932885906,
+ "system": {
+  "cpu": "-",
+  "cores": 18,
+  "arch": "aarch64",
+  "kernel": "7.2.12-orbstack-00394-gbecdd6130068"
+ },
+ "build": {
+  "spec": "OpenCFD container opencfd/openfoam-dev:2506",
+  "foam": "v2506",
+  "compiler": "Gcc",
+  "cxx": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0"
+ },
+ "time": "20261120-205708"
+}

@@ -62,6 +62,8 @@ Functional check so far (containers on a laptop, x86 under emulation, so the tim
 | Toolchain | Platform | STREAM | HPL residual |
 |---|---|---|---|
 | `gnu` | arm64, native | runs | passed |
+
+OpenFOAM 2506 from source with GCC 13.3 (`spack/gnu.yaml`, arm64) builds in about an hour on 4 jobs and reproduces the container build on the Monti Dauni case: after 200 iterations of wind from 240°, the 100 m wind fields differ by 0.00055 m/s RMS and at most 0.018 m/s, about 0.1 % of the peak speed (`results/solver_*.json`). The AOCC build is next.
 | `zenss` | x86-64, emulated | runs | passed |
 | `oneapi` | x86-64, emulated | runs | failed, also with `MKL_ENABLE_INSTRUCTIONS=SSE4_2`; to recheck on real x86 |
 
@@ -116,7 +118,8 @@ NP=64 scripts/bench_solver.sh case/runs/mesh-200 spack-aocc-znver4
 
 - [x] Spack environments for GCC, AOCC/AOCL and oneAPI/MKL
 - [x] STREAM and HPL built with all three; HPL residual passes with GCC/OpenBLAS and AOCC/BLIS
-- [ ] OpenFOAM 2506 from source with GCC and AOCC, results checked against the container build
+- [x] OpenFOAM 2506 from source with GCC, results checked against the container build
+- [ ] OpenFOAM 2506 from source with AOCC, same check
 - [ ] STREAM, HPL and `simpleFoam` timings on an EPYC node, with `-march=znver4` against x86-64-v3
 - [ ] Strong scaling of `simpleFoam` over cores, scotch against hierarchical decomposition
 - [ ] 50 m mesh and the time and cost of a full twelve-direction sweep

@@ -1,0 +1,27 @@
+{
+ "benchmark": "simpleFoam",
+ "label": "spack-gcc",
+ "case": "bench-spack-gcc",
+ "ranks": 4,
+ "iterations": 200,
+ "wall_s": 50.97425580024719,
+ "s_per_iter_steady": 0.25852348993288593,
+ "system": {
+  "cpu": "-",
+  "cores": 18,
+  "arch": "aarch64",
+  "kernel": "7.2.12-orbstack-00394-gbecdd6130068"
+ },
+ "build": {
+  "spec": "openfoam@2506%gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx ~int64~kahip~knl+metis~mgridgen~paraview+scotch+source~vtk~zoltan build_system=generic plugins:=none precision=dp target=aarch64;openmpi@5.0.10%gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx +atomics~cuda~debug+fortran~gpfs~internal-hwloc~internal-libevent~internal-pmix~ipv6~java~lustre~memchecker~openshmem~rocm~romio+rsh~static~two_level_namespace+vt+wrapper-rpath build_system=autotools fabrics:=none patches:=646eb1a romio-filesystem:=none schedulers:=none target=aarch64;scotch@7.0.11%gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx +compression~esmumps+fortran~int64~ipo~metis+mpi~mpi_thread~noarch+shared+threads build_system=cmake build_type=Release determinism=FIXED_SEED generator=make target=aarch64;",
+  "foam": "v2506",
+  "compiler": "Gcc",
+  "cxx": "g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0"
+ },
+ "time": "20261120-210029",
+ "check": {
+  "ref": "/work/pw/ref_container.npz",
+  "max_abs_diff_ms": 0.01781972624707251,
+  "rms_diff_ms": 0.0005514185475334
+ }
+}
