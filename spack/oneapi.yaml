@@ -1,0 +1,18 @@
+# Intel oneAPI: icx/ifx, MKL and Intel MPI, for the node baseline only.
+# OpenFOAM stays on GCC and AOCC here.
+# Install the compilers first: spack install intel-oneapi-compilers
+spack:
+  specs:
+  - stream +openmp %oneapi_all
+  - hpl ^intel-oneapi-mkl ^intel-oneapi-mpi %oneapi_all
+  toolchains:
+    oneapi_all:
+    - spec: '%[virtuals=c] intel-oneapi-compilers'
+      when: '%c'
+    - spec: '%[virtuals=cxx] intel-oneapi-compilers'
+      when: '%cxx'
+    - spec: '%[virtuals=fortran] intel-oneapi-compilers'
+      when: '%fortran'
+  view: false
+  concretizer:
+    unify: true

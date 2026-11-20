@@ -1,10 +1,12 @@
-# OpenFOAM from source, AOCC toolchain (AMD Zen Software Studio).
-# Install AOCC first (spack install aocc +license-agreed, which records that
-# you accept AMD's EULA); Spack 1.x only accepts %aocc once it is installed.
+# AMD Zen Software Studio: AOCC compilers and AOCL libraries (BLIS for BLAS,
+# libFLAME for LAPACK). OpenFOAM, STREAM and HPL all built with AOCC.
+# Install AOCC first: spack install aocc +license-agreed (accepts AMD's EULA).
 spack:
   specs:
   - openfoam@2506 +scotch +metis %aocc_all
   - openmpi %aocc_all
+  - stream +openmp %aocc_all
+  - hpl ^amdblis %aocc_all
   # %aocc alone binds AOCC to at least one language per package and lets the
   # solver pick GCC for the rest; this toolchain pins C, C++ and Fortran.
   toolchains:
@@ -15,6 +17,12 @@ spack:
       when: '%cxx'
     - spec: '%[virtuals=fortran] aocc'
       when: '%fortran'
-  view: true
+  packages:
+    # OpenFOAM pulls in ADIOS2, whose default XRootD backend fails to configure
+    # (its http plugin needs curl, which the Spack package doesn't declare).
+    # OpenFOAM needs neither XRootD nor the Catalyst plugin.
+    adios2:
+      require: '~xrootd ~libcatalyst'
+  view: false
   concretizer:
     unify: true

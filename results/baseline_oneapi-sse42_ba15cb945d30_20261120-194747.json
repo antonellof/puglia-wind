@@ -1,0 +1,32 @@
+{
+ "toolchain": "oneapi-sse42",
+ "env": "oneapi",
+ "ranks": 4,
+ "time": "20261120-194747",
+ "stream_mb_s": {
+  "Copy": 202552.3,
+  "Scale": 222197.4,
+  "Add": 209405.7,
+  "Triad": 212203.3
+ },
+ "hpl": {
+  "n": 4000,
+  "nb": 192,
+  "p": 2,
+  "q": 2,
+  "seconds": 0.51,
+  "gflops": 83.626,
+  "residual_passed": false
+ },
+ "system": {
+  "cpu": "-",
+  "arch": "x86_64",
+  "cores": 18
+ },
+ "build": [
+  "hpl@2.3 %intel-oneapi-compilers@2026.0.0/figi5mxnwxjbum7r4aspw6v74op6ildf",
+  "intel-oneapi-mkl@2026.0.0 %intel-oneapi-compilers@2026.0.0/figi5mxnwxjbum7r4aspw6v74op6ildf",
+  "intel-oneapi-mpi@2021.18.0 %intel-oneapi-compilers@2026.0.0/figi5mxnwxjbum7r4aspw6v74op6ildf",
+  "stream@5.10 %intel-oneapi-compilers@2026.0.0/figi5mxnwxjbum7r4aspw6v74op6ildf"
+ ]
+}

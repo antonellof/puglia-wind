@@ -1,10 +1,10 @@
 # puglia-wind
 
-Wind flow over the Monti Dauni, the Apennine ridge on the western edge of Puglia, with OpenFOAM. A 24 km square of real terrain, twelve wind directions, and ten years of ERA5 wind combined into a long-term map of mean wind 100 m above the ground, which is hub height for most of the turbines built there.
+Wind flow over two sites in northern Puglia, the Monti Dauni and the Gargano, with OpenFOAM built from source. A 24 km square of real terrain, twelve wind directions, and ten years of ERA5 wind combined into a long-term map of mean wind 100 m above the ground, which is hub height for most of the turbines built there.
 
 ![Long-term mean wind 100 m above ground](report/figures/mean_wind.png)
 
-There is also a 3D viewer in `docs/` (three.js, no build step): the terrain coloured by mean wind or by the speed-up for any of the twelve directions, particles following the solved flow 100 m above ground, and the turbines with rotors turned into the selected wind. Serve it with `python3 -m http.server -d docs`.
+There is also a 3D viewer for both sites in `docs/`, live at [fratepietro.com/puglia-wind](https://www.fratepietro.com/puglia-wind/) (three.js, no build step): the terrain coloured by mean wind or by the speed-up for any of the twelve directions, particles following the solved flow 100 m above ground, and the turbines with rotors turned into the selected wind. Serve it with `python3 -m http.server -d docs`.
 
 ![3D viewer](report/figures/viewer.jpg)
 
@@ -26,6 +26,46 @@ Most of the placement is explained by height alone: the median turbine is also a
 ![Speed-up for wind from 240°](report/figures/speedup_d240.png)
 
 For the most frequent direction the flow speeds up by as much as 1.7 times over the crests and drops below half the inflow speed in the lee valleys.
+
+## Second site: the Gargano
+
+The Gargano is the promontory north of the Monti Dauni, with the Adriatic on three sides. Same method on a 60 km square at 250 m (2.3M cells), with one change: the ground roughness follows a land/sea mask from the ISTAT coastline, z0 = 0.1 m on land and 0.0002 m on the sea (53 % of the ground faces are land). ERA5 there gives 5.05 m/s at 100 m, mostly from 330° (21 %) and 300° (16 %). All twelve directions converged, in 313 to 601 iterations.
+
+![Gargano long-term mean wind](report/figures/gargano_mean_wind.png)
+
+The windiest ground is the western ridges facing the north-westerlies; the inland valleys and the sea in the lee of the south coast are much calmer, and the wind slows where it crosses from the sea onto land. The only 17 turbines OpenStreetMap has in this square stand on the Tavoliere plain in the south-west corner, none on the promontory itself, most of which is national park.
+
+## HPC stack
+
+Everything that is timed is built from source with [Spack](https://spack.io) 1.2, one environment per toolchain (`spack/`). The prebuilt OpenCFD container in `docker/` is only for developing the case.
+
+| Toolchain | Compilers | BLAS / LAPACK | MPI | Built |
+|---|---|---|---|---|
+| `gnu` | GCC 13.3 | OpenBLAS 0.3.33 | Open MPI 5.0.10 | OpenFOAM 2506, STREAM 5.10, HPL 2.3 |
+| `zenss` | AOCC 5.2 (AMD Zen Software Studio) | AOCL-BLIS 5.3, AOCL-libFLAME 5.3 | Open MPI 5.0.10 | OpenFOAM 2506, STREAM 5.10, HPL 2.3 |
+| `oneapi` | Intel oneAPI 2026.0 (icx, ifx) | oneMKL 2026.0 | Intel MPI 2021.18 | STREAM 5.10, HPL 2.3 |
+
+Why these benchmarks: `simpleFoam` on a structured hex mesh does little arithmetic per byte it moves, so it is limited by memory bandwidth, not FLOPs. STREAM triad is the number that bounds the solver and tells you where its scaling over cores will flatten. HPL is there to check the compiler, BLAS and MPI stack end to end; its residual check catches a broken build before the CFD numbers do.
+
+Build and run notes:
+
+- In Spack 1.x, `%aocc` binds AOCC to at least one language per package and lets the solver pick GCC for the rest (and for dependencies). The `toolchains:` block in `spack/zenss.yaml` pins C, C++ and Fortran to AOCC, so the whole chain, Open MPI and BLIS included, is AOCC.
+- AOCC needs `+license-agreed` (AMD's EULA) before Spack will install it, and `%aocc` only resolves once the compiler is installed.
+- OpenFOAM pulls in ADIOS2, whose default XRootD backend fails to configure: its HTTP plugin needs curl, which the XRootD package doesn't declare. `adios2 ~xrootd ~libcatalyst` in the environments avoids it.
+- The first OpenFOAM install "succeeded" in five minutes with no solvers in it. Spack 1.x hands builds a make jobserver over a named pipe (`--jobserver-auth=fifo:...`), which GNU make before 4.4 can't read; Ubuntu 24.04 ships 4.3, and the OpenFOAM package uses whatever make is on `PATH`. Every `wmake` call stopped, `Allwmake` printed "ignoring possible compilation errors" and exited 0. `scripts/spack_install.sh` builds gmake 4.4 first and fails if `simpleFoam` is missing afterwards.
+- `scripts/node_baseline.sh` runs STREAM (one thread per core, `OMP_PROC_BIND=spread`, `OMP_PLACES=cores`) and HPL (one rank per core, P x Q grid close to square) and records the toolchain, every package hash and the CPU in `results/*.json`.
+- `scripts/bench_solver.sh` runs `simpleFoam` for a fixed number of iterations with whichever OpenFOAM build is loaded, records wall time and seconds per iteration, and compares the 100 m wind field with a reference run, so a fast but wrong build doesn't count.
+- Parallel runs use scotch domain decomposition (`decomposePar`) and one MPI rank per core.
+
+Functional check so far (containers on a laptop, x86 under emulation, so the timings are not meaningful and are not reported):
+
+| Toolchain | Platform | STREAM | HPL residual |
+|---|---|---|---|
+| `gnu` | arm64, native | runs | passed |
+| `zenss` | x86-64, emulated | runs | passed |
+| `oneapi` | x86-64, emulated | runs | failed, also with `MKL_ENABLE_INSTRUCTIONS=SSE4_2`; to recheck on real x86 |
+
+Next on an AMD EPYC node: STREAM and HPL per toolchain, OpenFOAM GCC against AOCC with `-march=znver4` against generic x86-64-v3, strong scaling of `simpleFoam` from 1 rank to a full socket with scotch against hierarchical decomposition, and the time and cost of a full twelve-direction sweep.
 
 ## Method
 
@@ -63,14 +103,23 @@ python3 report/plot_map.py case/runs/mesh-200-climate.npz --field mean -o report
 python3 report/export_web.py case/runs/mesh-200      # data for docs/
 ```
 
-The Python and OpenFOAM steps run inside the container. For production runs, `spack/` builds OpenFOAM 2506 from source with GCC (`gnu.yaml`) or AOCC (`zenss.yaml`).
+The Python and OpenFOAM steps run inside the container. On a cluster node, build the toolchains with Spack instead:
+
+```bash
+scripts/spack_install.sh zenss                     # creates and installs the pw-zenss environment
+scripts/node_baseline.sh pw-zenss zenss
+spack env activate pw-zenss && spack load openfoam
+NP=64 scripts/bench_solver.sh case/runs/mesh-200 spack-aocc-znver4
+```
 
 ## To do
 
-- [ ] 50 m mesh, full sweep, on an EPYC node
+- [x] Spack environments for GCC, AOCC/AOCL and oneAPI/MKL
+- [x] STREAM and HPL built with all three; HPL residual passes with GCC/OpenBLAS and AOCC/BLIS
+- [ ] OpenFOAM 2506 from source with GCC and AOCC, results checked against the container build
+- [ ] STREAM, HPL and `simpleFoam` timings on an EPYC node, with `-march=znver4` against x86-64-v3
 - [ ] Strong scaling of `simpleFoam` over cores, scotch against hierarchical decomposition
-- [ ] OpenFOAM built with GCC against AOCC, same case
-- [ ] Time and cost for a full twelve-direction sweep
+- [ ] 50 m mesh and the time and cost of a full twelve-direction sweep
 - [ ] Roughness from CORINE land cover
 - [ ] Check against a measured series
 

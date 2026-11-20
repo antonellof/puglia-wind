@@ -189,12 +189,13 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
 host.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 500);
-camera.position.set(-4, 20, 27);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 1500);
+const FIT = H / 12; // camera and particle speed were tuned on the 24 km domain
+camera.position.set(-4 * FIT, 20 * FIT, 27 * FIT);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.47;
-controls.minDistance = 4; controls.maxDistance = 70; controls.autoRotateSpeed = 0.5;
-controls.target.set(0, 0.4, 1);
+controls.minDistance = 4; controls.maxDistance = 70 * FIT; controls.autoRotateSpeed = 0.5;
+controls.target.set(0, 0.4, FIT);
 scene.add(new THREE.HemisphereLight(0xf4f1ea, 0x6b6a64, 1.4));
 const sun = new THREE.DirectionalLight(0xffffff, 1.6);
 sun.position.set(-12, 14, -10); scene.add(sun);
@@ -322,7 +323,7 @@ function spawn(n) {
 }
 function particleXYZ(x, y) { const [X, Z] = toScene(x, y); return [X, yOf(terrainAt(x, y) + 100) + 0.02, Z]; }
 for (let n = 0; n < NP; n++) { spawn(n); age[n] = Math.random() * life[n]; }
-const KM_PER_MS = 0.11; // visual time scale: 10 m/s crosses the domain in about 20 s
+const KM_PER_MS = 0.11 * FIT; // visual time scale: 10 m/s crosses the domain in about 20 s
 let frame = 0;
 function stepParticles(dt) {
   frame++;

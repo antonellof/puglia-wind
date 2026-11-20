@@ -1,9 +1,17 @@
-# OpenFOAM from source, GCC toolchain.
-# Create with: spack env create of-gnu spack/gnu.yaml && spack -e of-gnu install
+# GCC toolchain: OpenFOAM, plus the node baseline (STREAM, HPL on OpenBLAS).
+# spack env create pw-gnu spack/gnu.yaml && spack -e pw-gnu install
 spack:
   specs:
   - openfoam@2506 +scotch +metis %gcc
   - openmpi %gcc
-  view: true
+  - stream +openmp %gcc
+  - hpl ^openblas threads=none %gcc
+  packages:
+    # OpenFOAM pulls in ADIOS2, whose default XRootD backend fails to configure
+    # (its http plugin needs curl, which the Spack package doesn't declare).
+    # OpenFOAM needs neither XRootD nor the Catalyst plugin.
+    adios2:
+      require: '~xrootd ~libcatalyst'
+  view: false
   concretizer:
     unify: true

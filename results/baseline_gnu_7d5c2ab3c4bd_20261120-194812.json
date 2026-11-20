@@ -1,0 +1,32 @@
+{
+ "toolchain": "gnu",
+ "env": "gnu",
+ "ranks": 4,
+ "time": "20261120-194812",
+ "stream_mb_s": {
+  "Copy": 205666.1,
+  "Scale": 205163.1,
+  "Add": 199136.1,
+  "Triad": 186034.6
+ },
+ "hpl": {
+  "n": 4000,
+  "nb": 192,
+  "p": 2,
+  "q": 2,
+  "seconds": 0.35,
+  "gflops": 123.19,
+  "residual_passed": true
+ },
+ "system": {
+  "cpu": "-",
+  "arch": "aarch64",
+  "cores": 18
+ },
+ "build": [
+  "hpl@2.3 %gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx",
+  "openblas@0.3.33 %gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx",
+  "openmpi@5.0.10 %gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx",
+  "stream@5.10 %gcc@13.3.0/ecodgxi6uy67gzfhttxwhz6zbqclwjdx"
+ ]
+}

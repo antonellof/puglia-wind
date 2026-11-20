@@ -1,0 +1,32 @@
+{
+ "toolchain": "zenss",
+ "env": "zenss",
+ "ranks": 4,
+ "time": "20261120-194726",
+ "stream_mb_s": {
+  "Copy": 191849.2,
+  "Scale": 187141.3,
+  "Add": 193100.5,
+  "Triad": 187210.9
+ },
+ "hpl": {
+  "n": 4000,
+  "nb": 192,
+  "p": 2,
+  "q": 2,
+  "seconds": 0.61,
+  "gflops": 70.346,
+  "residual_passed": true
+ },
+ "system": {
+  "cpu": "-",
+  "arch": "x86_64",
+  "cores": 18
+ },
+ "build": [
+  "amdblis@5.3 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc",
+  "hpl@2.3 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc",
+  "openmpi@5.0.10 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc",
+  "stream@5.10 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc"
+ ]
+}
