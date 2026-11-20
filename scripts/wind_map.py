@@ -46,10 +46,10 @@ def main():
         U = u if U is None else U + u
         P = p if P is None else P + p
         used.append(s["dir"])
-        x, y, zg = d["x"], d["y"], d["ground"]
+        east, north, zg, dx = d["east"], d["north"], d["ground"], d["dx"]
     ref_u = sum(s["freq"] * s["A"] * math.gamma(1 + 1 / s["k"]) for s in clim["sectors"])
     out = f"case/runs/{name}-climate.npz"
-    np.savez_compressed(out, mean=U, power=P, x=x, y=y, ground=zg, ref_mean=ref_u, sectors=used)
+    np.savez_compressed(out, mean=U, power=P, east=east, north=north, dx=dx, ground=zg, ref_mean=ref_u, sectors=used)
     print(f"{out}: mean speed {U.min():.2f} to {U.max():.2f} m/s (ERA5 point {ref_u:.2f}), "
           f"power density {P.min():.0f} to {P.max():.0f} W/m2")
 

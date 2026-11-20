@@ -80,8 +80,12 @@ def main():
     ustar = kappa * wind["uref"] / np.log((wind["zref"] + wind["z0"]) / wind["z0"])
     uin = ustar / kappa * np.log((a.agl + wind["z0"]) / wind["z0"])
 
+    rot = np.radians(mesh.get("rotate", 0.0))
+    xl, yl = C[0, ..., 0], C[0, ..., 1]
+    east = xl * np.cos(rot) - yl * np.sin(rot)
+    north = xl * np.sin(rot) + yl * np.cos(rot)
     out = os.path.join(a.run, f"hub_{a.agl:g}m.npz")
-    np.savez_compressed(out, speed=s, speedup=s / uin, ground=zg, x=C[0, 0, :, 0], y=C[0, :, 0, 1],
+    np.savez_compressed(out, speed=s, speedup=s / uin, ground=zg, east=east, north=north, dx=mesh["dx"],
                         time=float(t), uin=uin, **{k: v for k, v in wind.items()})
     print(f"{out}: time {t}, inflow {uin:.2f} m/s at {a.agl:g} m, speed {s.min():.2f} to "
           f"{s.max():.2f} m/s, speed-up {s.min() / uin:.2f} to {s.max() / uin:.2f}")

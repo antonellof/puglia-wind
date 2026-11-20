@@ -1,0 +1,10 @@
+{
+ "turbines": 264,
+ "turbine_mean": 5.472688227206614,
+ "domain_mean": 4.545003269803377,
+ "turbine_median_percentile": 94.41975308641975,
+ "share_in_top_quarter": 0.7121212121212122,
+ "share_in_bottom_quarter": 0.041666666666666664,
+ "turbine_median_elevation_percentile": 93.00617283950618,
+ "median_percentile_among_same_elevation": 79.79885057471265
+}

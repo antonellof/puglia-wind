@@ -26,6 +26,8 @@ ap.add_argument("-o", "--out", default="data/turbines.json")
 a = ap.parse_args()
 m = json.load(open(a.mesh))
 h = m["size"] / 2
+import math
+rot = math.radians(m.get("rotate", 0.0))
 
 wgs = osr.SpatialReference(); wgs.ImportFromEPSG(4326)
 utm = osr.SpatialReference(); utm.ImportFromEPSG(32633)
@@ -33,7 +35,8 @@ for s in (wgs, utm):
     s.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
 inv = osr.CoordinateTransformation(utm, wgs)
 fwd = osr.CoordinateTransformation(wgs, utm)
-corners = [inv.TransformPoint(m["cx"] + sx * h, m["cy"] + sy * h)[:2] for sx in (-1, 1) for sy in (-1, 1)]
+r = h * 1.42
+corners = [inv.TransformPoint(m["cx"] + sx * r, m["cy"] + sy * r)[:2] for sx in (-1, 1) for sy in (-1, 1)]
 lons, lats = zip(*corners)
 bbox = f"{min(lats)},{min(lons)},{max(lats)},{max(lons)}"
 q = f'[out:json][timeout:120];node["power"="generator"]["generator:source"="wind"]({bbox});out;'
@@ -53,7 +56,9 @@ out = []
 for e in els:
     x, y, _ = fwd.TransformPoint(e["lon"], e["lat"])
     x, y = x - m["cx"], y - m["cy"]
-    if abs(x) < h and abs(y) < h:
+    xl = x * math.cos(rot) + y * math.sin(rot)
+    yl = -x * math.sin(rot) + y * math.cos(rot)
+    if abs(xl) < h and abs(yl) < h:
         out.append(dict(lon=e["lon"], lat=e["lat"], x=x, y=y,
                         hub=e.get("tags", {}).get("height:hub") or e.get("tags", {}).get("height")))
 json.dump(out, open(a.out, "w"), indent=1)

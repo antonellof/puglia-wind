@@ -8,7 +8,12 @@ Steps:
      top, sides) with geometric grading towards the ground, and run blockMesh;
   2. move every point column onto the terrain: z = h + s * (ztop - h), where s
      is the graded height from step 1;
-  3. near the edges, blend the terrain to a flat ring at the mean edge height,
+  3. the block is rotated by --rotate degrees (anticlockwise) against UTM, so
+     no sector direction (multiples of 30) runs parallel to a side. With a
+     side parallel to the wind the face flux is near zero, the inlet/outlet
+     switch flickers every iteration, and the cross-stream residual stalls
+     around 1e-2;
+  4. near the edges, blend the terrain to a flat ring at the mean edge height,
      so the ABL inflow on the sides sees level ground. All four sides use the
      same inlet/outlet condition, and one mesh serves every wind direction.
 
@@ -76,6 +81,7 @@ def main():
     ap.add_argument("--nz", type=int, default=40)
     ap.add_argument("--grading", type=float, default=60.0, help="top/bottom cell height ratio")
     ap.add_argument("--blend", type=float, default=3000.0, help="width of the flat edge ring [m]")
+    ap.add_argument("--rotate", type=float, default=15.0, help="mesh rotation against UTM [deg]")
     ap.add_argument("--headroom", type=float, default=3000.0, help="top above highest terrain [m]")
     a = ap.parse_args()
 
@@ -84,7 +90,7 @@ def main():
     cx, cy = float(t["cx"]), float(t["cy"])
     n = int(round(a.size / a.dx))
     h = a.size / 2
-    if a.size + 2 * a.dx > xg[-1] - xg[0]:
+    if a.size * 1.42 + 2 * a.dx > xg[-1] - xg[0]:
         raise SystemExit("terrain patch is smaller than the domain; cut a larger one")
 
     sysdir = os.path.join(a.case, "system")
@@ -97,8 +103,11 @@ def main():
     header, p = read_points(ppath)
 
     # Terrain height at every point, local coordinates relative to the centre.
-    fi = (p[:, 0] + cx - xg[0]) / res
-    fj = (p[:, 1] + cy - yg[0]) / res
+    ca, sa = np.cos(np.radians(a.rotate)), np.sin(np.radians(a.rotate))
+    east = p[:, 0] * ca - p[:, 1] * sa
+    north = p[:, 0] * sa + p[:, 1] * ca
+    fi = (east + cx - xg[0]) / res
+    fj = (north + cy - yg[0]) / res
     ht = map_coordinates(zgrid, [fj, fi], order=1, mode="nearest")
 
     # Distance to the nearest edge decides the blend weight.
@@ -117,7 +126,7 @@ def main():
     q = a.grading ** (1.0 / (a.nz - 1))
     s1 = (q - 1) / (q ** a.nz - 1)
     info = dict(size=a.size, dx=a.dx, n=n, nz=a.nz, cells=n * n * a.nz, grading=a.grading,
-                blend=a.blend, h0=h0, ztop=ztop, cx=cx, cy=cy, lat=float(t["lat"]),
+                blend=a.blend, rotate=a.rotate, h0=h0, ztop=ztop, cx=cx, cy=cy, lat=float(t["lat"]),
                 lon=float(t["lon"]), first_cell_min=s1 * (ztop - hb.max()),
                 first_cell_max=s1 * (ztop - hb.min()), terrain_min=float(hb.min()),
                 terrain_max=float(hb.max()))

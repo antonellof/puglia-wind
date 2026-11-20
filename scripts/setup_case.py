@@ -4,7 +4,8 @@
     scripts/setup_case.py RUN --mesh MESHCASE --dir 300 [--uref 10 --zref 100 --z0 0.1]
 
 --dir is the meteorological direction the wind blows from, in degrees
-(0 north, 90 east). Local x is east and y is north, as in UTM.
+(0 north, 90 east). The mesh frame is UTM rotated by mesh.json "rotate"
+degrees, so flowDir is rotated back into it.
 """
 import argparse
 import json
@@ -32,8 +33,11 @@ shutil.copytree(os.path.join(a.mesh, "constant", "polyMesh"),
                 os.path.join(a.run, "constant", "polyMesh"))
 shutil.copy(os.path.join(a.mesh, "mesh.json"), a.run)
 
+rot = math.radians(json.load(open(os.path.join(a.mesh, "mesh.json"))).get("rotate", 0.0))
 th = math.radians(a.dir)
-fx, fy = -math.sin(th), -math.cos(th)
+ex, ny = -math.sin(th), -math.cos(th)  # direction the wind blows towards, east/north
+fx = ex * math.cos(rot) + ny * math.sin(rot)
+fy = -ex * math.sin(rot) + ny * math.cos(rot)
 abl = os.path.join(a.run, "0", "include", "ABLConditions")
 txt = open(abl).read()
 for key, val in [("Uref", f"{a.uref:g}"), ("Zref", f"{a.zref:g}"),
