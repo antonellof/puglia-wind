@@ -8,7 +8,8 @@ boundaryField
     ground
     {
         type            atmNutkWallFunction;
-        z0              $z0;
+        // Per-face roughness written by scripts/mesh.py (land or sea).
+        #include        "$FOAM_CASE/constant/z0Ground"
         Cmu             0.09;
         kappa           0.4;
         value           uniform 0;

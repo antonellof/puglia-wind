@@ -27,7 +27,8 @@ def main():
     ap.add_argument("--climate", default="data/wind_climate.json")
     ap.add_argument("--turbines", default="data/turbines.json")
     ap.add_argument("--res", type=float, default=50.0, help="display terrain resolution [m]")
-    ap.add_argument("-o", "--out", default="docs/data")
+    ap.add_argument("--name", default="Monti Dauni")
+    ap.add_argument("-o", "--out", default="docs/data/dauni")
     a = ap.parse_args()
 
     name = os.path.basename(os.path.normpath(a.mesh))
@@ -71,11 +72,11 @@ def main():
             if abs(x) < h and abs(y) < h:
                 tur.append([round(x), round(y)])
 
-    meta = dict(size=mesh["size"], rotate=mesh["rotate"], nt=nt, nf=mesh["n"], dx=mesh["dx"],
+    meta = dict(name=a.name, size=mesh["size"], rotate=mesh["rotate"], nt=nt, nf=mesh["n"], dx=mesh["dx"],
                 cells=mesh["cells"], lat=mesh["lat"], lon=mesh["lon"], zmin=float(z.min()),
                 zmax=float(z.max()), uref=10.0, agl=100, dirs=dirs, turbines=tur,
                 mean_range=[float(np.percentile(m["mean"], 1)), float(np.percentile(m["mean"], 99.5))],
-                era5_mean=clim["mean"], years=f"{clim['start'][:4]} to {clim['end'][:4]}")
+                era5_mean=clim["mean"], land_share=mesh.get("land_share", 1.0), years=f"{clim['start'][:4]} to {clim['end'][:4]}")
     json.dump(meta, open(os.path.join(a.out, "meta.json"), "w"), separators=(",", ":"))
     size = sum(os.path.getsize(os.path.join(a.out, f)) for f in ("meta.json", "terrain.bin", "fields.bin"))
     print(f"{a.out}: terrain {nt}x{nt}, fields {mesh['n']}x{mesh['n']} x {len(dirs)} directions, "

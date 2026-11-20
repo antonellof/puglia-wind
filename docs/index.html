@@ -37,6 +37,8 @@
   #locator .hl { fill: var(--ink-2); fill-opacity: 0.35; stroke: var(--ink-2); stroke-width: 0.8; }
   #locator .dom { fill: var(--accent); fill-opacity: 0.25; stroke: var(--accent); stroke-width: 1.5; }
   #locator text { font-size: 9px; fill: var(--muted); }
+  #locator .dom-other { fill: var(--ink-2); fill-opacity: 0.08; stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 2 2; cursor: pointer; }
+  #locator .dom-other:hover { fill-opacity: 0.25; }
   #rose { display: block; margin: 2px auto 0; cursor: pointer; }
   #rose path { transition: fill 0.15s; }
   .rose-note { text-align: center; font-size: 12px; color: var(--ink-2); margin-top: 2px; min-height: 18px; }
@@ -69,8 +71,9 @@
 <div id="loading">Loading terrain and wind fields…</div>
 <button class="toggle" id="toggle">Controls</button>
 <aside class="panel" id="panel">
-  <h1>Wind over the Monti Dauni</h1>
-  <p class="sub" id="subtitle">Puglia, 100 m above ground. OpenFOAM terrain model, ERA5 climate.</p>
+  <h1 id="title">Wind in northern Puglia</h1>
+  <p class="sub" id="subtitle">100 m above ground. OpenFOAM terrain model, ERA5 climate.</p>
+  <div class="seg" id="sites" style="margin-bottom:10px"></div>
   <svg id="locator" viewBox="0 0 268 150" role="img" aria-label="Locator map: the model domain in northern Puglia, southern Italy"></svg>
 
   <div class="label">Colour</div>
@@ -130,13 +133,23 @@ function ramp(stops, t) {
   return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
 }
 
+const SITES = [
+  { id: "dauni", name: "Monti Dauni" },
+  { id: "gargano", name: "Gargano" },
+];
+const SITE = SITES.find((s) => s.id === new URLSearchParams(location.search).get("site")) ? new URLSearchParams(location.search).get("site") : "dauni";
 const [meta, terrainBuf, fieldBuf, loc] = await Promise.all([
-  fetch("data/meta.json").then((r) => r.json()),
-  fetch("data/terrain.bin").then((r) => r.arrayBuffer()),
-  fetch("data/fields.bin").then((r) => r.arrayBuffer()),
+  fetch(`data/${SITE}/meta.json`).then((r) => r.json()),
+  fetch(`data/${SITE}/terrain.bin`).then((r) => r.arrayBuffer()),
+  fetch(`data/${SITE}/fields.bin`).then((r) => r.arrayBuffer()),
   fetch("data/locator.json").then((r) => (r.ok ? r.json() : null)).catch(() => null),
 ]);
 $("loading").remove();
+document.title = `${meta.name} wind`;
+$("title").textContent = `Wind over the ${meta.name}`;
+$("subtitle").textContent = `Puglia, 100 m above ground. OpenFOAM terrain model, ERA5 climate ${meta.years}.`;
+$("sites").innerHTML = SITES.map((s) => `<button data-site="${s.id}" aria-pressed="${s.id === SITE}">${s.name}</button>`).join("");
+$("sites").addEventListener("click", (e) => { const id = e.target.dataset?.site; if (id && id !== SITE) location.search = `?site=${id}`; });
 
 // ---------- data ----------
 const H = meta.size / 2000;                 // half side, km
@@ -242,6 +255,7 @@ function updateColours() {
       c = s < 1 ? ramp(DIVERGING.slice(0, 2), (s - SPEEDUP_RANGE[0]) / (1 - SPEEDUP_RANGE[0]))
                 : ramp(DIVERGING.slice(1), (s - 1) / (SPEEDUP_RANGE[1] - 1));
     }
+    if (elev[k] === 0) c = c.map((v, i) => v * 0.78 + [0.30, 0.42, 0.55][i] * 0.22); // water tint
     _c.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace);
     tcol[3 * k] = _c.r; tcol[3 * k + 1] = _c.g; tcol[3 * k + 2] = _c.b;
   }
@@ -349,9 +363,14 @@ function drawLocator() {
     if (reg.name === loc.highlight) hl = `<path class="hl" d="${d}"/>`;
     else html += `<path class="reg" d="${d}"/>`;
   }
-  const dom = `<path class="dom" d="${path(loc.domain)}"/>`;
+  let dom = "";
+  for (const [id, sq] of Object.entries(loc.domains || {})) {
+    const cur = id === SITE;
+    dom += `<path class="${cur ? "dom" : "dom-other"}" data-site="${id}" d="${path(sq)}"><title>${SITES.find((s) => s.id === id)?.name || id}</title></path>`;
+  }
   const [lx, ly] = P([16.75, 40.75]).split(",");
   svg.innerHTML = html + hl + dom + `<text x="${lx}" y="${ly}">Puglia</text>`;
+  svg.addEventListener("click", (e) => { const id = e.target.dataset?.site; if (id && id !== SITE) location.search = `?site=${id}`; });
 }
 
 
@@ -418,6 +437,7 @@ $("stats").innerHTML = [
   ["Mesh", `${(meta.cells / 1e6).toFixed(2)}M cells, ${meta.dx} m`],
   ["Solver", "simpleFoam, k-epsilon"],
   ["ERA5 mean, 100 m", `${meta.era5_mean.toFixed(2)} m/s`],
+  ...(meta.land_share < 0.99 ? [["Land / sea", `${Math.round(100 * meta.land_share)} / ${Math.round(100 * (1 - meta.land_share))} %`]] : []),
   ["Centre", `${meta.lat.toFixed(2)}° N, ${meta.lon.toFixed(2)}° E`],
 ].map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join("");
 

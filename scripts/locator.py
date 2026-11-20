@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Region outlines and the domain square, for locator maps.
 
-    scripts/locator.py --mesh case/runs/mesh-200/mesh.json -o docs/data/locator.json
+    scripts/locator.py --site dauni=case/runs/mesh-200/mesh.json --site gargano=case/runs/gargano-250/mesh.json
 
 Reads ISTAT region boundaries (openpolis/geojson-italy, CC BY), keeps the
 regions inside a southern Italy window, simplifies them and adds the corners
@@ -41,7 +41,7 @@ def simplify(ring, tol):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--mesh", required=True)
+    ap.add_argument("--site", action="append", required=True, help="name=path/to/mesh.json")
     ap.add_argument("--geojson", default="data/boundaries/regions.geojson")
     ap.add_argument("--window", default="12.3,37.8,19.0,43.0", help="lon0,lat0,lon1,lat1")
     ap.add_argument("--tol", type=float, default=0.01, help="simplification tolerance [deg]")
@@ -67,20 +67,24 @@ def main():
         if rings:
             regions.append(dict(name=f["properties"]["reg_name"], rings=rings))
 
-    m = json.load(open(a.mesh))
     wgs = osr.SpatialReference(); wgs.ImportFromEPSG(4326)
     utm = osr.SpatialReference(); utm.ImportFromEPSG(32633)
     for s in (wgs, utm):
         s.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
     inv = osr.CoordinateTransformation(utm, wgs)
-    h, r = m["size"] / 2, math.radians(m.get("rotate", 0.0))
-    square = []
-    for x, y in [(-h, -h), (h, -h), (h, h), (-h, h)]:
-        e, n = x * math.cos(r) - y * math.sin(r), x * math.sin(r) + y * math.cos(r)
-        lon, lat, _ = inv.TransformPoint(m["cx"] + e, m["cy"] + n)
-        square.append([round(lon, 4), round(lat, 4)])
+    domains = {}
+    for site in a.site:
+        name, path = site.split("=", 1)
+        m = json.load(open(path))
+        h, r = m["size"] / 2, math.radians(m.get("rotate", 0.0))
+        square = []
+        for x, y in [(-h, -h), (h, -h), (h, h), (-h, h)]:
+            e, n = x * math.cos(r) - y * math.sin(r), x * math.sin(r) + y * math.cos(r)
+            lon, lat, _ = inv.TransformPoint(m["cx"] + e, m["cy"] + n)
+            square.append([round(lon, 4), round(lat, 4)])
+        domains[name] = square
 
-    out = dict(window=[lon0, lat0, lon1, lat1], regions=regions, domain=square, highlight="Puglia",
+    out = dict(window=[lon0, lat0, lon1, lat1], regions=regions, domains=domains, highlight="Puglia",
                source="ISTAT region boundaries via openpolis/geojson-italy, CC BY")
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     json.dump(out, open(a.out, "w"), separators=(",", ":"))

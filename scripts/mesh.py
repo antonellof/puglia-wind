@@ -17,6 +17,9 @@ Steps:
      so the ABL inflow on the sides sees level ground. All four sides use the
      same inlet/outlet condition, and one mesh serves every wind direction.
 
+Ground roughness: each ground face gets --z0-land or --z0-sea from the land
+mask in the terrain file, written to constant/z0Ground and included by 0/nut.
+
 Writes case/mesh.json with what the solver and post-processing need.
 """
 import argparse
@@ -82,6 +85,8 @@ def main():
     ap.add_argument("--grading", type=float, default=60.0, help="top/bottom cell height ratio")
     ap.add_argument("--blend", type=float, default=3000.0, help="width of the flat edge ring [m]")
     ap.add_argument("--rotate", type=float, default=15.0, help="mesh rotation against UTM [deg]")
+    ap.add_argument("--z0-land", type=float, default=0.1, help="roughness over land [m]")
+    ap.add_argument("--z0-sea", type=float, default=0.0002, help="roughness over sea [m]")
     ap.add_argument("--headroom", type=float, default=3000.0, help="top above highest terrain [m]")
     a = ap.parse_args()
 
@@ -120,20 +125,46 @@ def main():
     ztop = float(zgrid.max() + a.headroom)
     p[:, 2] = hb + p[:, 2] * (ztop - hb)
     write_points(ppath, header, p)
+
+    # Ground roughness per face, from the land mask at the face centre.
+    land = t["land"] if "land" in t.files else np.ones_like(zgrid, dtype=bool)
+    poly = os.path.join(a.case, "constant", "polyMesh")
+    btxt = open(os.path.join(poly, "boundary")).read()
+    gm = re.search(r"ground\s*\{[^}]*?nFaces\s+(\d+);[^}]*?startFace\s+(\d+);", btxt, re.S)
+    nfaces, start = int(gm.group(1)), int(gm.group(2))
+    ftxt = open(os.path.join(poly, "faces")).read()
+    fm = re.search(r"\n(\d+)\s*\n\(", ftxt)
+    lines = ftxt[fm.end():].lstrip().split("\n", start + nfaces)[start:start + nfaces]
+    idx = np.array([list(map(int, l[l.index("(") + 1:l.index(")")].split())) for l in lines])
+    fc = p[idx].mean(axis=1)
+    fe = fc[:, 0] * ca - fc[:, 1] * sa
+    fn = fc[:, 0] * sa + fc[:, 1] * ca
+    fl = map_coordinates(land.astype(float), [(fn + cy - yg[0]) / res, (fe + cx - xg[0]) / res],
+                         order=0, mode="nearest") > 0.5
+    z0 = np.where(fl, a.z0_land, a.z0_sea)
+    with open(os.path.join(a.case, "constant", "z0Ground"), "w") as f:
+        if np.all(z0 == z0[0]):
+            f.write(f"z0 uniform {z0[0]:g};\n")
+        else:
+            f.write(f"z0 nonuniform List<scalar> {len(z0)}\n(\n")
+            f.write("\n".join(f"{v:g}" for v in z0))
+            f.write("\n);\n")
+    land_share = float(fl.mean())
     subprocess.run(["checkMesh", "-case", a.case], check=True,
                    stdout=open(os.path.join(a.case, "log.checkMesh"), "w"))
 
     q = a.grading ** (1.0 / (a.nz - 1))
     s1 = (q - 1) / (q ** a.nz - 1)
     info = dict(size=a.size, dx=a.dx, n=n, nz=a.nz, cells=n * n * a.nz, grading=a.grading,
-                blend=a.blend, rotate=a.rotate, h0=h0, ztop=ztop, cx=cx, cy=cy, lat=float(t["lat"]),
+                blend=a.blend, rotate=a.rotate, h0=h0, land_share=land_share,
+                z0_land=a.z0_land, z0_sea=a.z0_sea, ztop=ztop, cx=cx, cy=cy, lat=float(t["lat"]),
                 lon=float(t["lon"]), first_cell_min=s1 * (ztop - hb.max()),
                 first_cell_max=s1 * (ztop - hb.min()), terrain_min=float(hb.min()),
                 terrain_max=float(hb.max()))
     json.dump(info, open(os.path.join(a.case, "mesh.json"), "w"), indent=1)
     print(f"{a.case}: {info['cells']} cells ({n}x{n}x{a.nz}), terrain {hb.min():.0f} to "
           f"{hb.max():.0f} m, edge ring {h0:.0f} m, top {ztop:.0f} m, first cell "
-          f"{info['first_cell_min']:.1f} to {info['first_cell_max']:.1f} m")
+          f"{info['first_cell_min']:.1f} to {info['first_cell_max']:.1f} m, land {100 * land_share:.0f} % of ground")
 
 
 if __name__ == "__main__":

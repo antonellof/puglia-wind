@@ -22,7 +22,7 @@ ap.add_argument("--mesh", required=True, help="case directory holding constant/p
 ap.add_argument("--dir", type=float, required=True)
 ap.add_argument("--uref", type=float, default=10.0)
 ap.add_argument("--zref", type=float, default=100.0)
-ap.add_argument("--z0", type=float, default=0.1)
+ap.add_argument("--z0", type=float, default=0.1, help="inflow roughness on the sides [m]")
 ap.add_argument("--procs", type=int, default=4)
 a = ap.parse_args()
 
@@ -32,6 +32,11 @@ shutil.copytree(TEMPLATE, a.run)
 shutil.copytree(os.path.join(a.mesh, "constant", "polyMesh"),
                 os.path.join(a.run, "constant", "polyMesh"))
 shutil.copy(os.path.join(a.mesh, "mesh.json"), a.run)
+z0g = os.path.join(a.mesh, "constant", "z0Ground")
+if os.path.exists(z0g):
+    shutil.copy(z0g, os.path.join(a.run, "constant"))
+else:
+    open(os.path.join(a.run, "constant", "z0Ground"), "w").write(f"z0 uniform {a.z0:g};\n")
 
 rot = math.radians(json.load(open(os.path.join(a.mesh, "mesh.json"))).get("rotate", 0.0))
 th = math.radians(a.dir)
