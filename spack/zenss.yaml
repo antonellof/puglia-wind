@@ -1,0 +1,20 @@
+# OpenFOAM from source, AOCC toolchain (AMD Zen Software Studio).
+# Install AOCC first (spack install aocc +license-agreed, which records that
+# you accept AMD's EULA); Spack 1.x only accepts %aocc once it is installed.
+spack:
+  specs:
+  - openfoam@2506 +scotch +metis %aocc_all
+  - openmpi %aocc_all
+  # %aocc alone binds AOCC to at least one language per package and lets the
+  # solver pick GCC for the rest; this toolchain pins C, C++ and Fortran.
+  toolchains:
+    aocc_all:
+    - spec: '%[virtuals=c] aocc'
+      when: '%c'
+    - spec: '%[virtuals=cxx] aocc'
+      when: '%cxx'
+    - spec: '%[virtuals=fortran] aocc'
+      when: '%fortran'
+  view: true
+  concretizer:
+    unify: true

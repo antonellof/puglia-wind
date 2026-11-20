@@ -1,0 +1,4 @@
+data/
+case/runs/
+*.pyc
+__pycache__/

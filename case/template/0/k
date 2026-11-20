@@ -1,0 +1,14 @@
+FoamFile { version 2.0; format ascii; class volScalarField; object k; }
+dimensions      [0 2 -2 0 0 0 0];
+internalField   uniform 1.0;
+boundaryField
+{
+    sides
+    {
+        type            atmBoundaryLayerInletK;
+        #include        "include/ABLConditions"
+        value           $internalField;
+    }
+    ground  { type kqRWallFunction; value uniform 1.0; }
+    top     { type slip; }
+}

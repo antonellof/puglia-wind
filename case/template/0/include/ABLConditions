@@ -1,0 +1,10 @@
+FoamFile { version 2.0; format ascii; class dictionary; object ABLConditions; }
+// Written by scripts/setup_case.py; values here are defaults.
+Uref        10.0;
+Zref        100.0;
+z0          uniform 0.1;
+d           uniform 0.0;
+flowDir     (1 0 0);
+zDir        (0 0 1);
+kappa       0.4;
+Cmu         0.09;
