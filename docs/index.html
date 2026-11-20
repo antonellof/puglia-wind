@@ -1,0 +1,436 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monti Dauni wind</title>
+<meta name="description" content="Wind over the Monti Dauni (Puglia) from an OpenFOAM terrain model, 100 m above ground, with the wind turbines built there.">
+<style>
+  :root {
+    --ink: #0b0b0b; --ink-2: #52514e; --muted: #8a8984; --grid: #e4e3df;
+    --surface: #fcfcfb; --panel: rgba(252, 252, 251, 0.92); --accent: #eb6834; --cool: #2a78d6;
+    --sky-top: #dfe7ee; --sky-bottom: #f4f3ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #f1f0ec; --ink-2: #b9b8b3; --muted: #85847f; --grid: #34342f;
+      --surface: #151513; --panel: rgba(24, 24, 22, 0.9); --sky-top: #10161c; --sky-bottom: #1b1b18;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--surface); color: var(--ink);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  #scene { position: fixed; inset: 0; background: linear-gradient(var(--sky-top), var(--sky-bottom)); }
+  #scene canvas { display: block; }
+  .panel { position: fixed; top: 16px; left: 16px; width: 300px; max-height: calc(100% - 32px); overflow: auto;
+    background: var(--panel); border: 1px solid var(--grid); border-radius: 10px; padding: 16px 16px 12px;
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  h1 { font-size: 17px; margin: 0 0 2px; font-weight: 650; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 12.5px; margin: 0 0 12px; }
+  .label { font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 12px 0 6px; }
+  .seg { display: flex; border: 1px solid var(--grid); border-radius: 7px; overflow: hidden; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--ink-2); padding: 6px 4px; font: inherit;
+    font-size: 12.5px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  #rose { display: block; margin: 2px auto 0; cursor: pointer; }
+  #rose path { transition: fill 0.15s; }
+  .rose-note { text-align: center; font-size: 12px; color: var(--ink-2); margin-top: 2px; min-height: 18px; }
+  .row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); margin: 6px 0; }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .row input[type=checkbox] { accent-color: var(--accent); }
+  #legend canvas { width: 100%; height: 10px; border-radius: 3px; display: block; }
+  .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .legend-title { font-size: 12px; color: var(--ink-2); margin-bottom: 5px; }
+  .foot { font-size: 11px; color: var(--muted); margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 8px; }
+  .foot a { color: var(--ink-2); }
+  #tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--grid);
+    border-radius: 7px; padding: 6px 9px; font-size: 12px; color: var(--ink); display: none; white-space: nowrap;
+    font-variant-numeric: tabular-nums; }
+  #tip b { font-weight: 600; }
+  .stat { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 12.5px; color: var(--ink-2); }
+  .stat span:nth-child(even) { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+  #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--ink-2); font-size: 13px; }
+  .toggle { position: fixed; top: 16px; left: 16px; display: none; border: 1px solid var(--grid); background: var(--panel);
+    color: var(--ink); border-radius: 8px; padding: 7px 11px; font: inherit; font-size: 13px; }
+  @media (max-width: 640px) {
+    .panel { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 52%; border-radius: 12px 12px 0 0; }
+    .panel.closed { display: none; }
+    .toggle { display: block; }
+  }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+<div id="loading">Loading terrain and wind fields…</div>
+<button class="toggle" id="toggle">Controls</button>
+<aside class="panel" id="panel">
+  <h1>Wind over the Monti Dauni</h1>
+  <p class="sub" id="subtitle">Puglia, 100 m above ground. OpenFOAM terrain model, ERA5 climate.</p>
+
+  <div class="label">Colour</div>
+  <div class="seg" id="mode">
+    <button data-mode="mean" aria-pressed="true">Long-term mean</button>
+    <button data-mode="speedup" aria-pressed="false">Speed-up</button>
+  </div>
+
+  <div class="label">Wind from</div>
+  <svg id="rose" width="200" height="200" viewBox="-100 -100 200 200" role="group" aria-label="Wind direction selector, petal length is how often the wind blows from that sector"></svg>
+  <div class="rose-note" id="roseNote"></div>
+
+  <div id="legend">
+    <div class="label">Legend</div>
+    <div class="legend-title" id="legendTitle"></div>
+    <canvas id="legendBar" width="256" height="10"></canvas>
+    <div class="ticks" id="legendTicks"></div>
+  </div>
+
+  <div class="label">View</div>
+  <label class="row"><input type="checkbox" id="particles" checked> Wind particles</label>
+  <label class="row"><input type="checkbox" id="turbines" checked> <span>Turbines from OpenStreetMap: <span id="nTurb"></span>, drawn 3× size</span></label>
+  <label class="row"><input type="checkbox" id="spin"> Rotate camera</label>
+  <label class="row">Relief <input type="range" id="exag" min="1" max="5" step="0.5" value="2.5"> <span id="exagVal">2.5×</span></label>
+
+  <div class="label">Model</div>
+  <div class="stat" id="stats"></div>
+
+  <div class="foot">
+    Terrain: Copernicus WorldDEM-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA.
+    Wind: contains modified Copernicus Climate Change Service information (ERA5) via Open-Meteo.
+    Turbines: © OpenStreetMap contributors.
+  </div>
+</aside>
+<div id="tip"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const DIVERGING = ["#2a78d6", "#d9d8d3", "#eb6834"];
+const SEQUENTIAL = ["#f3efe6", "#f2b48c", "#eb6834", "#a8351a", "#5a1a0b"];
+const SPEEDUP_RANGE = [0.3, 1.7];
+
+const $ = (id) => document.getElementById(id);
+const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+function ramp(stops, t) {
+  t = Math.min(1, Math.max(0, t));
+  const f = t * (stops.length - 1), i = Math.min(stops.length - 2, Math.floor(f)), u = f - i;
+  const a = hex(stops[i]), b = hex(stops[i + 1]);
+  return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+}
+
+const [meta, terrainBuf, fieldBuf] = await Promise.all([
+  fetch("data/meta.json").then((r) => r.json()),
+  fetch("data/terrain.bin").then((r) => r.arrayBuffer()),
+  fetch("data/fields.bin").then((r) => r.arrayBuffer()),
+]);
+$("loading").remove();
+
+// ---------- data ----------
+const H = meta.size / 2000;                 // half side, km
+const NT = meta.nt, NF = meta.nf, NF2 = NF * NF;
+const elev = new Uint16Array(terrainBuf);   // m, row j (mesh y) major
+const bytes = new Uint8Array(fieldBuf), sbytes = new Int8Array(fieldBuf);
+const ROT = (meta.rotate * Math.PI) / 180, CA = Math.cos(ROT), SA = Math.sin(ROT);
+const dirs = meta.dirs;
+const state = { mode: "mean", dir: dirs.reduce((b, d, i) => (d.freq > dirs[b].freq ? i : b), 0), exag: 2.5 };
+
+// mesh frame (km) -> scene: x east, z south, y up
+const toScene = (x, y) => [x * CA - y * SA, -(x * SA + y * CA)];
+const fromScene = (X, Z) => { const e = X, n = -Z; return [e * CA + n * SA, -e * SA + n * CA]; };
+
+function terrainAt(x, y) { // bilinear elevation, m
+  const f = (v) => Math.min(NT - 1.001, Math.max(0, ((v + H) / (2 * H)) * (NT - 1)));
+  const fi = f(x), fj = f(y), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+  const k = j * NT + i;
+  return (elev[k] * (1 - u) + elev[k + 1] * u) * (1 - v) + (elev[k + NT] * (1 - u) + elev[k + NT + 1] * u) * v;
+}
+function fieldAt(off, x, y, signed, scale) { // bilinear on cell centres
+  const c = (v) => Math.min(NF - 1.001, Math.max(0, ((v + H) / (2 * H)) * NF - 0.5));
+  const fi = c(x), fj = c(y), i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+  const a = signed ? sbytes : bytes, k = off + j * NF + i;
+  return ((a[k] * (1 - u) + a[k + 1] * u) * (1 - v) + (a[k + NF] * (1 - u) + a[k + NF + 1] * u) * v) / scale;
+}
+const offSpeedup = (d) => d * 3 * NF2, offUx = (d) => d * 3 * NF2 + NF2, offUy = (d) => d * 3 * NF2 + 2 * NF2;
+const offMean = dirs.length * 3 * NF2;
+const speedupAt = (d, x, y) => fieldAt(offSpeedup(d), x, y, false, 100);
+const meanAt = (x, y) => fieldAt(offMean, x, y, false, 30);
+const windAt = (d, x, y) => [fieldAt(offUx(d), x, y, true, 6), fieldAt(offUy(d), x, y, true, 6)];
+const yOf = (zm) => ((zm - meta.zmin) / 1000) * state.exag;
+
+// ---------- scene ----------
+const host = $("scene");
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+host.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(40, 1, 0.05, 500);
+camera.position.set(-4, 20, 27);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.maxPolarAngle = Math.PI * 0.47;
+controls.minDistance = 4; controls.maxDistance = 70; controls.autoRotateSpeed = 0.5;
+controls.target.set(0, 0.4, 1);
+scene.add(new THREE.HemisphereLight(0xf4f1ea, 0x6b6a64, 1.4));
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(-12, 14, -10); scene.add(sun);
+
+// terrain
+const tg = new THREE.BufferGeometry();
+const tpos = new Float32Array(NT * NT * 3), tcol = new Float32Array(NT * NT * 3), txy = new Float32Array(NT * NT * 2);
+for (let j = 0; j < NT; j++) for (let i = 0; i < NT; i++) {
+  const k = j * NT + i, x = -H + (2 * H * i) / (NT - 1), y = -H + (2 * H * j) / (NT - 1);
+  const [X, Z] = toScene(x, y);
+  tpos[3 * k] = X; tpos[3 * k + 2] = Z; txy[2 * k] = x; txy[2 * k + 1] = y;
+}
+const tidx = new Uint32Array((NT - 1) * (NT - 1) * 6);
+let q = 0;
+for (let j = 0; j < NT - 1; j++) for (let i = 0; i < NT - 1; i++) {
+  const a = j * NT + i, b = a + 1, c = a + NT, d = c + 1;
+  tidx.set([a, b, c, b, d, c], q); q += 6; // scene z points south, so this winding faces up
+}
+tg.setIndex(new THREE.BufferAttribute(tidx, 1));
+tg.setAttribute("position", new THREE.BufferAttribute(tpos, 3));
+tg.setAttribute("color", new THREE.BufferAttribute(tcol, 3));
+const terrain = new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ vertexColors: true }));
+scene.add(terrain);
+
+// skirt so the block reads as a solid slab
+const skirtMat = new THREE.MeshLambertMaterial({ color: 0x8f8d86, side: THREE.DoubleSide });
+const skirt = new THREE.Mesh(new THREE.BufferGeometry(), skirtMat);
+scene.add(skirt);
+
+function updateRelief() {
+  for (let k = 0; k < NT * NT; k++) tpos[3 * k + 1] = yOf(elev[k]);
+  tg.attributes.position.needsUpdate = true; tg.computeVertexNormals();
+  const edge = [];
+  const push = (i, j) => edge.push(j * NT + i);
+  for (let i = 0; i < NT; i++) push(i, 0);
+  for (let j = 1; j < NT; j++) push(NT - 1, j);
+  for (let i = NT - 2; i >= 0; i--) push(i, NT - 1);
+  for (let j = NT - 2; j >= 0; j--) push(0, j);
+  const base = -0.6, p = [], idx = [];
+  edge.forEach((k, n) => { p.push(tpos[3 * k], tpos[3 * k + 1], tpos[3 * k + 2], tpos[3 * k], base, tpos[3 * k + 2]);
+    if (n > 0) { const a = 2 * (n - 1); idx.push(a, a + 1, a + 2, a + 2, a + 1, a + 3); } });
+  skirt.geometry.dispose();
+  skirt.geometry = new THREE.BufferGeometry();
+  skirt.geometry.setAttribute("position", new THREE.Float32BufferAttribute(p, 3));
+  skirt.geometry.setIndex(idx); skirt.geometry.computeVertexNormals();
+}
+
+const _c = new THREE.Color();
+function updateColours() {
+  for (let k = 0; k < NT * NT; k++) {
+    const x = txy[2 * k], y = txy[2 * k + 1];
+    let c;
+    if (state.mode === "mean") {
+      const [lo, hi] = meta.mean_range;
+      c = ramp(SEQUENTIAL, (meanAt(x, y) - lo) / (hi - lo));
+    } else {
+      const s = speedupAt(state.dir, x, y);
+      c = s < 1 ? ramp(DIVERGING.slice(0, 2), (s - SPEEDUP_RANGE[0]) / (1 - SPEEDUP_RANGE[0]))
+                : ramp(DIVERGING.slice(1), (s - 1) / (SPEEDUP_RANGE[1] - 1));
+    }
+    _c.setRGB(c[0], c[1], c[2], THREE.SRGBColorSpace);
+    tcol[3 * k] = _c.r; tcol[3 * k + 1] = _c.g; tcol[3 * k + 2] = _c.b;
+  }
+  tg.attributes.color.needsUpdate = true;
+  drawLegend();
+}
+
+// turbines: tower + three-blade rotor, instanced
+const NTURB = meta.turbines.length;
+const VIS = 3; // turbines are drawn 3x real size so they show at this scale
+const HUB = 0.1, BLADE = 0.055 * VIS; // km; tower height follows the relief setting
+const towerGeo = new THREE.CylinderGeometry(0.004 * VIS, 0.007 * VIS, 1, 6).translate(0, 0.5, 0);
+const towers = new THREE.InstancedMesh(towerGeo, new THREE.MeshLambertMaterial({ color: 0xf6f6f2 }), NTURB);
+const bladeGeo = new THREE.BoxGeometry(0.006 * VIS, BLADE, 0.002 * VIS).translate(0, BLADE / 2, 0);
+const blades = [0, 1, 2].map(() => new THREE.InstancedMesh(bladeGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), NTURB));
+scene.add(towers); blades.forEach((b) => scene.add(b));
+const m4 = new THREE.Matrix4(), qY = new THREE.Quaternion(), qR = new THREE.Quaternion(), qq = new THREE.Quaternion();
+const vS = new THREE.Vector3(), vP = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), fwd = new THREE.Vector3(0, 0, 1);
+const turbBase = meta.turbines.map(([x, y]) => { const [X, Z] = toScene(x / 1000, y / 1000); return { X, Z, x: x / 1000, y: y / 1000, phase: Math.random() * 6.28 }; });
+function placeTowers() {
+  turbBase.forEach((t, n) => {
+    const y0 = yOf(terrainAt(t.x, t.y)), hh = HUB * state.exag;
+    t.y0 = y0; t.hub = y0 + hh;
+    m4.compose(vP.set(t.X, y0, t.Z), qq.identity(), vS.set(1, hh, 1));
+    towers.setMatrixAt(n, m4);
+  });
+  towers.instanceMatrix.needsUpdate = true;
+}
+function updateRotors(time) {
+  const d = dirs[state.dir], th = (d.dir * Math.PI) / 180;
+  const yaw = Math.atan2(-Math.sin(th), Math.cos(th)); // rotor faces the incoming wind
+  qY.setFromAxisAngle(up, yaw);
+  turbBase.forEach((t, n) => {
+    const s = speedupAt(state.dir, t.x, t.y);
+    const ang = t.phase + time * 1.6 * Math.max(0.2, s);
+    for (let b = 0; b < 3; b++) {
+      qR.setFromAxisAngle(fwd, ang + (b * 2 * Math.PI) / 3);
+      qq.copy(qY).multiply(qR);
+      m4.compose(vP.set(t.X, t.hub, t.Z), qq, vS.set(1, 1, 1));
+      blades[b].setMatrixAt(n, m4);
+    }
+  });
+  blades.forEach((b) => (b.instanceMatrix.needsUpdate = true));
+}
+
+// particles at 100 m above ground, advected by the solved field
+const NP = Math.round(2500 + 2500 * Math.min(1, (innerWidth * innerHeight) / (1400 * 900)));
+const TRAIL = 10;
+const px = new Float32Array(NP), py = new Float32Array(NP), age = new Float32Array(NP), life = new Float32Array(NP);
+const hist = new Float32Array(NP * TRAIL * 3);
+const lpos = new Float32Array(NP * (TRAIL - 1) * 2 * 3), lcol = new Float32Array(NP * (TRAIL - 1) * 2 * 4);
+const lg = new THREE.BufferGeometry();
+lg.setAttribute("position", new THREE.BufferAttribute(lpos, 3));
+lg.setAttribute("color", new THREE.BufferAttribute(lcol, 4));
+const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
+lines.frustumCulled = false;
+scene.add(lines);
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+function spawn(n) {
+  px[n] = (Math.random() * 2 - 1) * H * 0.97; py[n] = (Math.random() * 2 - 1) * H * 0.97;
+  age[n] = 0; life[n] = 2.5 + Math.random() * 4;
+  const p = particleXYZ(px[n], py[n]);
+  for (let k = 0; k < TRAIL; k++) hist.set(p, (n * TRAIL + k) * 3);
+}
+function particleXYZ(x, y) { const [X, Z] = toScene(x, y); return [X, yOf(terrainAt(x, y) + 100) + 0.02, Z]; }
+for (let n = 0; n < NP; n++) { spawn(n); age[n] = Math.random() * life[n]; }
+const KM_PER_MS = 0.11; // visual time scale: 10 m/s crosses the domain in about 20 s
+let frame = 0;
+function stepParticles(dt) {
+  frame++;
+  const shift = frame % 2 === 0;
+  for (let n = 0; n < NP; n++) {
+    const [u, v] = windAt(state.dir, px[n], py[n]);
+    px[n] += u * KM_PER_MS * dt; py[n] += v * KM_PER_MS * dt; age[n] += dt;
+    if (age[n] > life[n] || Math.abs(px[n]) > H || Math.abs(py[n]) > H) { spawn(n); continue; }
+    const base = n * TRAIL * 3;
+    if (shift) hist.copyWithin(base + 3, base, base + (TRAIL - 1) * 3);
+    hist.set(particleXYZ(px[n], py[n]), base);
+  }
+  const head = [1, 1, 1];
+  for (let n = 0; n < NP; n++) {
+    const fade = Math.min(1, age[n] / 0.6, (life[n] - age[n]) / 0.6);
+    for (let k = 0; k < TRAIL - 1; k++) {
+      const s = (n * (TRAIL - 1) + k) * 2, h0 = (n * TRAIL + k) * 3, h1 = h0 + 3;
+      lpos.set(hist.subarray(h0, h0 + 3), s * 3); lpos.set(hist.subarray(h1, h1 + 3), s * 3 + 3);
+      const a0 = 0.95 * fade * (1 - k / (TRAIL - 1)), a1 = 0.95 * fade * (1 - (k + 1) / (TRAIL - 1));
+      lcol.set([...head, a0], s * 4); lcol.set([...head, a1], s * 4 + 4);
+    }
+  }
+  lg.attributes.position.needsUpdate = true; lg.attributes.color.needsUpdate = true;
+}
+
+// ---------- UI ----------
+function drawLegend() {
+  const c = $("legendBar").getContext("2d"), w = 256;
+  for (let i = 0; i < w; i++) {
+    const t = i / (w - 1);
+    let rgb;
+    if (state.mode === "mean") rgb = ramp(SEQUENTIAL, t);
+    else { const s = SPEEDUP_RANGE[0] + t * (SPEEDUP_RANGE[1] - SPEEDUP_RANGE[0]);
+      rgb = s < 1 ? ramp(DIVERGING.slice(0, 2), (s - SPEEDUP_RANGE[0]) / (1 - SPEEDUP_RANGE[0])) : ramp(DIVERGING.slice(1), (s - 1) / (SPEEDUP_RANGE[1] - 1)); }
+    c.fillStyle = `rgb(${rgb.map((v) => Math.round(v * 255)).join(",")})`; c.fillRect(i, 0, 1, 10);
+  }
+  let ticks;
+  if (state.mode === "mean") {
+    $("legendTitle").textContent = `Mean wind speed, ${meta.years} [m/s]`;
+    const [lo, hi] = meta.mean_range; ticks = [lo, (lo + hi) / 2, hi].map((v) => v.toFixed(1));
+  } else {
+    $("legendTitle").textContent = `Speed relative to the inflow, wind from ${dirs[state.dir].dir}°`;
+    ticks = ["0.3×", "1.0×", "1.7×"];
+  }
+  $("legendTicks").innerHTML = ticks.map((t) => `<span>${t}</span>`).join("");
+}
+
+function drawRose() {
+  const svg = $("rose"), maxf = Math.max(...dirs.map((d) => d.freq)), R = 78, r0 = 14, half = (Math.PI / dirs.length) * 0.86;
+  let html = `<circle r="${R}" fill="none" stroke="var(--grid)"/><circle r="${R / 2}" fill="none" stroke="var(--grid)"/>`;
+  ["N", "E", "S", "W"].forEach((l, i) => { const a = (i * Math.PI) / 2;
+    html += `<text x="${(R + 11) * Math.sin(a)}" y="${-(R + 11) * Math.cos(a) + 4}" text-anchor="middle" font-size="11" fill="var(--muted)">${l}</text>`; });
+  dirs.forEach((d, i) => {
+    const a = (d.dir * Math.PI) / 180, r = r0 + (R - r0) * (d.freq / maxf);
+    const p = (ang, rad) => `${(rad * Math.sin(ang)).toFixed(2)},${(-rad * Math.cos(ang)).toFixed(2)}`;
+    const sel = i === state.dir;
+    html += `<path data-i="${i}" tabindex="0" role="button" aria-label="Wind from ${d.dir} degrees, ${(100 * d.freq).toFixed(1)} percent of hours"
+      d="M${p(a - half, r0)} L${p(a - half, r)} A${r},${r} 0 0 1 ${p(a + half, r)} L${p(a + half, r0)} A${r0},${r0} 0 0 0 ${p(a - half, r0)}Z"
+      fill="${sel ? "var(--accent)" : "var(--ink-2)"}" fill-opacity="${sel ? 1 : 0.28}"/>`;
+  });
+  svg.innerHTML = html;
+  const d = dirs[state.dir];
+  $("roseNote").textContent = `${d.dir}°: ${(100 * d.freq).toFixed(1)} % of hours, ERA5 mean ${d.mean.toFixed(1)} m/s`;
+}
+$("rose").addEventListener("click", (e) => { const i = e.target.dataset?.i; if (i !== undefined) selectDir(+i); });
+$("rose").addEventListener("keydown", (e) => { const i = e.target.dataset?.i; if (i !== undefined && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); selectDir(+i); } });
+function selectDir(i) { state.dir = i; drawRose(); if (state.mode === "speedup") updateColours(); else drawLegend(); }
+
+$("mode").addEventListener("click", (e) => {
+  const m = e.target.dataset?.mode; if (!m) return;
+  state.mode = m;
+  [...$("mode").children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.mode === m));
+  updateColours();
+});
+$("particles").addEventListener("change", (e) => (lines.visible = e.target.checked));
+$("turbines").addEventListener("change", (e) => { towers.visible = e.target.checked; blades.forEach((b) => (b.visible = e.target.checked)); });
+$("spin").addEventListener("change", (e) => (controls.autoRotate = e.target.checked));
+$("exag").addEventListener("input", (e) => {
+  state.exag = +e.target.value; $("exagVal").textContent = `${state.exag}×`;
+  updateRelief(); placeTowers();
+  for (let n = 0; n < NP; n++) spawn(n);
+});
+$("toggle").addEventListener("click", () => $("panel").classList.toggle("closed"));
+$("nTurb").textContent = NTURB;
+$("stats").innerHTML = [
+  ["Domain", `${meta.size / 1000} × ${meta.size / 1000} km`],
+  ["Mesh", `${(meta.cells / 1e6).toFixed(2)}M cells, ${meta.dx} m`],
+  ["Solver", "simpleFoam, k-epsilon"],
+  ["ERA5 mean, 100 m", `${meta.era5_mean.toFixed(2)} m/s`],
+  ["Centre", `${meta.lat.toFixed(2)}° N, ${meta.lon.toFixed(2)}° E`],
+].map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join("");
+
+// hover read-out
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(), tip = $("tip");
+renderer.domElement.addEventListener("pointermove", (e) => {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObject(terrain)[0];
+  if (!hit) { tip.style.display = "none"; return; }
+  const [x, y] = fromScene(hit.point.x, hit.point.z);
+  tip.innerHTML = `Elevation <b>${Math.round(terrainAt(x, y))} m</b><br>Mean wind <b>${meanAt(x, y).toFixed(1)} m/s</b><br>` +
+    `Speed-up from ${dirs[state.dir].dir}° <b>${speedupAt(state.dir, x, y).toFixed(2)}×</b>`;
+  tip.style.display = "block";
+  tip.style.left = `${Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8)}px`;
+  tip.style.top = `${e.clientY + 14}px`;
+});
+renderer.domElement.addEventListener("pointerleave", () => (tip.style.display = "none"));
+
+function resize() {
+  const w = host.clientWidth, h = host.clientHeight;
+  renderer.setSize(w, h); camera.aspect = w / h;
+  // Keep the terrain centred in the space right of the panel on wide screens.
+  const side = w > 640 ? $("panel").offsetWidth + 16 : 0;
+  if (side) camera.setViewOffset(w, h, -side / 2, 0, w, h); else camera.clearViewOffset();
+  camera.updateProjectionMatrix();
+}
+addEventListener("resize", resize);
+resize(); updateRelief(); updateColours(); placeTowers(); drawRose();
+
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = Math.min(0.05, clock.getDelta()), t = clock.elapsedTime;
+  if (!reduced) { if (lines.visible) stepParticles(dt); if (towers.visible) updateRotors(t); }
+  else if (frame === 0) { stepParticles(0); updateRotors(0); }
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>

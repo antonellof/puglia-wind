@@ -4,6 +4,10 @@ Wind flow over the Monti Dauni, the Apennine ridge on the western edge of Puglia
 
 ![Long-term mean wind 100 m above ground](report/figures/mean_wind.png)
 
+There is also a 3D viewer in `docs/` (three.js, no build step): the terrain coloured by mean wind or by the speed-up for any of the twelve directions, particles following the solved flow 100 m above ground, and the turbines with rotors turned into the selected wind. Serve it with `python3 -m http.server -d docs`.
+
+![3D viewer](report/figures/viewer.jpg)
+
 The triangles are the 504 wind turbines mapped in OpenStreetMap inside the domain. They are only drawn on the map; the model doesn't use them.
 
 ## Results so far (200 m mesh, 576k cells)
@@ -56,6 +60,7 @@ python3 scripts/wind_map.py case/runs/mesh-200
 python3 scripts/turbines.py --mesh case/runs/mesh-200/mesh.json
 python3 scripts/turbine_check.py case/runs/mesh-200-climate.npz
 python3 report/plot_map.py case/runs/mesh-200-climate.npz --field mean -o report/figures/mean_wind.png
+python3 report/export_web.py case/runs/mesh-200      # data for docs/
 ```
 
 The Python and OpenFOAM steps run inside the container. For production runs, `spack/` builds OpenFOAM 2506 from source with GCC (`gnu.yaml`) or AOCC (`zenss.yaml`).

@@ -74,6 +74,8 @@ def main():
     zg = 0.25 * (P[0, :-1, :-1, 2] + P[0, 1:, :-1, 2] + P[0, :-1, 1:, 2] + P[0, 1:, 1:, 2])
     speed = np.hypot(U[..., 0], U[..., 1])
     s = column_interp(C[..., 2], speed, zg + a.agl)
+    ux = column_interp(C[..., 2], U[..., 0], zg + a.agl)
+    uy = column_interp(C[..., 2], U[..., 1], zg + a.agl)
 
     # Inflow reference: the log profile the ABL inlet imposes, at the same height.
     kappa, cmu = 0.4, 0.09
@@ -84,8 +86,10 @@ def main():
     xl, yl = C[0, ..., 0], C[0, ..., 1]
     east = xl * np.cos(rot) - yl * np.sin(rot)
     north = xl * np.sin(rot) + yl * np.cos(rot)
+    ue = ux * np.cos(rot) - uy * np.sin(rot)
+    un = ux * np.sin(rot) + uy * np.cos(rot)
     out = os.path.join(a.run, f"hub_{a.agl:g}m.npz")
-    np.savez_compressed(out, speed=s, speedup=s / uin, ground=zg, east=east, north=north, dx=mesh["dx"],
+    np.savez_compressed(out, speed=s, speedup=s / uin, ground=zg, east=east, north=north, ue=ue, un=un, dx=mesh["dx"],
                         time=float(t), uin=uin, **{k: v for k, v in wind.items()})
     print(f"{out}: time {t}, inflow {uin:.2f} m/s at {a.agl:g} m, speed {s.min():.2f} to "
           f"{s.max():.2f} m/s, speed-up {s.min() / uin:.2f} to {s.max() / uin:.2f}")
