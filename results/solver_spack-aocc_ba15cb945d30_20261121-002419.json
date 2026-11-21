@@ -1,0 +1,27 @@
+{
+ "benchmark": "simpleFoam",
+ "label": "spack-aocc",
+ "case": "bench-spack-aocc",
+ "ranks": 4,
+ "iterations": 200,
+ "wall_s": 54.36405849456787,
+ "s_per_iter_steady": 0.27248322147651005,
+ "system": {
+  "cpu": "-",
+  "cores": 18,
+  "arch": "x86_64",
+  "kernel": "7.2.12-orbstack-00394-gbecdd6130068"
+ },
+ "build": {
+  "spec": "openfoam@2506 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc openmpi@5.0.10 %aocc@5.2.0/xdq5zzzx3q7j5zjsvjp6r55ei6rmlcyc ",
+  "foam": "v2506",
+  "compiler": "Amd",
+  "cxx": "AMD clang version 17.0.6 (CLANG: AOCC_5.2.0-Build#2035 2026_04_10)"
+ },
+ "time": "20261121-002419",
+ "check": {
+  "ref": "ref_hub_100m.npz",
+  "max_abs_diff_ms": 0.0668179443549306,
+  "rms_diff_ms": 0.002088317292390504
+ }
+}
